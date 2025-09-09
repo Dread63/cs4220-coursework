@@ -15,6 +15,8 @@
 #define MAX_BACKLOG 5
 #define FRAME_SIZE 1024
 
+#define STDIN 0
+
 int send_file_data(int socket_fd, const char *filepath);
 
 int main(void) {
@@ -139,6 +141,58 @@ int send_file_data(int socket_fd, const char *filepath) {
         }
 
         // TODO: start timer, wait for ACK (sequence). On timeout/incorrect ACK, retransmit same frame
+        struct timeval tv;
+        fd_set readfds;
+
+        tv.tv_sec = 2;
+        tv.tv_usec = 500000;
+
+        FD_ZERO(&readfds);
+        FD_SET(socket_fd, &readfds);
+
+        // don't care about writefds and exceptfds:
+        int select_feedback = select(socket_fd + 1, &readfds, NULL, NULL, &tv);
+
+        if (select_feedback == -1) {
+            perror("Select error");
+            close(socket_fd);
+            return -1;
+        }
+
+        else if (select_feedback == 0) {
+            puts("Timed out: Resending Frame");
+            
+            // Continue to re-send current frame
+        }
+
+        else {
+
+            if (FD_ISSET(socket_fd, &readfds)) {
+
+                uint8_t ack_buffer[2];
+                ssize_t recevied_data = recv(socket_fd, ack_buffer, sizeof ack_buffer, 0);
+
+                if (recevied_data > 0) {
+
+                    printf("Server: ACK Received %d\n", ack_buffer[0]);
+
+                    if(ack_buffer[0] != current_sequence) {
+
+                        // RESEND CURRENT FRAME
+                    }
+
+                    else {
+                        continue;
+                    }
+                }
+
+                else {
+                    
+                }
+            }
+        }
+
+
         // printf("Server: sent seq=%u, bytes=%zu\n", seq, bytes_read);
 
         // TODO: toggle sequence byte after valid ACK
