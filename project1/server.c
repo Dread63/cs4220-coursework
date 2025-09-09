@@ -9,13 +9,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <strings.h> 
 
 #define PORT "2222"
 #define MAX_BACKLOG 5
 #define FRAME_SIZE 1024
 
 int send_file_data(int socket_fd, const char *filepath);
-
 
 int main(void) {
 
@@ -24,18 +24,15 @@ int main(void) {
 
     // Used to track error status
     int err_status;
-
-    struct addrinfo hints;
-    struct addrinfo *servinfo, *p;
-
+    
+    // OUTLIER
     socklen_t sin_size;
+  
 
-    // Address of client connecting to server
-    struct sockaddr_storage client_addr;
-
+    struct addrinfo hints, *servinfo, *p;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
     hints.ai_flags = AI_PASSIVE;
 
     if ((err_status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
@@ -51,11 +48,13 @@ int main(void) {
         // Socket for current address
         socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 
+        // Check if socket was initialized successfully
         if (socket_fd == -1) {
-            perror("server: socket");
+            perror("socket");
             continue;
         }
 
+        // Try to bind and print error if can't
         if (bind(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
             close(socket_fd);
             perror("bind");
@@ -68,26 +67,45 @@ int main(void) {
     // Free up memory dedicated to the server info structure
     freeaddrinfo(servinfo);
 
+    // Check if binding was successful
+    if (!bind_success) {
+        perror("Server failed to bind");
+        return 1;
+    }
+
+    // Open socket for listening
     if (listen(socket_fd, MAX_BACKLOG) == -1) {
 
         perror("Listen error: Too many connections in queue");
-        exit(1);
+        close(socket_fd);
+        return 1;
     }
     printf("Listening....\n");
 
+    // Address of client connecting to server
+    struct sockaddr_storage client_addr;
+
     // Accept connection from client
-    sin_size = sizeof client_addr;
+    socklen_t sin_size = sizeof client_addr;
     new_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &sin_size);
     if (new_fd == -1) {
         perror("accept");
         close(socket_fd);
         return 1;
     }
-    printf("Connection accepted\n");
 
-    // Reading file
-    send_file_data(new_fd, "inputfile.txt");
+    puts("Server: connection accepted\n");
 
+    if(send_file_data(new_fd, "inputfile.txt") != 0) {
+        perror("send_file_data failed\n");
+        close(new_fd);
+        close(socket_fd);
+        return 1;
+    }
+    
+    close(new_fd);
+    close(socket_fd);
+    puts("Server: done, closing connection");
     return 0;
 }
 
@@ -95,16 +113,14 @@ int send_file_data(int socket_fd, const char *filepath) {
 
     FILE *data_file = fopen(filepath, "rb");
 
-    uint8_t current_sequence = 0;
-    uint8_t current_frame[FRAME_SIZE + 1];
-
     if (data_file == NULL) {
 
         perror("datafile");
         return -1;
     }
 
-    // Buffer used to read inputfile.txt
+    uint8_t current_sequence = 0;
+    uint8_t current_frame[FRAME_SIZE + 1];
     char buffer[FRAME_SIZE] = {0};
 
     size_t bytes_read;
@@ -118,18 +134,17 @@ int send_file_data(int socket_fd, const char *filepath) {
         size_t to_send = 1 + bytes_read;
         if(send(socket_fd, current_frame, to_send, 0) == -1) {
             perror("send");
-            exit(1);
+            fclose(data_file);
+            return -1;
         }
 
+        // TODO: start timer, wait for ACK (sequence). On timeout/incorrect ACK, retransmit same frame
+        // printf("Server: sent seq=%u, bytes=%zu\n", seq, bytes_read);
+
+        // TODO: toggle sequence byte after valid ACK
         bzero(buffer, FRAME_SIZE);
-        //uint8_t ack;
-        //recv(clientsocket, ack, sizeof(ack), 0);
-
-        // Continue re-transmitting current frame until ack matches
-        //while (ack != current_frame) {
-
-          //  write(socket, current_frame, FRAME_SIZE + 1);
-            //recv(clientsocket, ack, sizeof(ack), 0);
-        //}
     }
+
+    fclose(data_file);
+    return 0;
 }
