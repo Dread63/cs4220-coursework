@@ -52,8 +52,9 @@ int main(void) {
 
 
     // Initialize frame buffer to receive data
-    char frame[FRAME_BYTES] = {0};
-
+    uint8_t frame[FRAME_BYTES] = {0};
+    // Initialize expected sequence value to start at zero   
+    uint8_t expected_seq = 0;
     // TODO: Track expected seq byte and send ACK
     while(1) {
 
@@ -68,36 +69,59 @@ int main(void) {
             return 1;
         }
 
+        // Server closed the connection
         if (recevied_data == 0) {
-            // Server closed the connection
             break;
         }
 
-        char sequence_val = frame[0]; // Pull sequence byte out of received data
-        size_t data_length = (size_t) (recevied_data - 1); // Pull everything other than sequence byte out
+        uint8_t sequence_val = frame[0]; // Pull sequence byte out of received data
+        size_t data_length = (recevied_data - 1); // Pull everything other than sequence byte out
 
         // TODO: If seq != to expected_seq -> re-ACK last good seq and continue
-        
-
-        // Write the data portion of the recevied data
-        if (data_length > 0) {
-
-            size_t written = fwrite(frame + 1, 1, data_length, output_file);
-
-            if (written != data_length)
+     
+        if (sequence_val == expected_seq)
+        {
+            // Write the data portion of the recevied data
+            if (data_length > 0)
             {
-                if (ferror(output_file))
+
+                size_t written = fwrite(frame + 1, 1, data_length, output_file);
+
+                if (written != data_length)
                 {
-                    perror("fwrite");
+                    if (ferror(output_file))
+                    {
+                        perror("fwrite");
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Short write: wrote %zu of %zu bytes\n", written, data_length);
+                    }
+                    fclose(output_file);
+                    close(socket_fd);
+                    return 1;
                 }
-                else
+
+                size_t send_feedback = send(socket_fd, &sequence_val, 1, 0);
+
+                if (send_feedback<= 0)
                 {
-                    fprintf(stderr, "Short write: wrote %zu of %zu bytes\n", written, data_length);
+                    perror("send");
+                    return -1;
                 }
-                fclose(output_file);
-                close(socket_fd);
-                return 1;
+
+                // Toggle sequence value
+                expected_seq ^= 1;
             }
+
+            else {
+                 
+            }
+        }
+
+        else {
+
+
         }
     }
 
