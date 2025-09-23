@@ -113,15 +113,6 @@ int main(void) {
                 // Toggle sequence value
                 expected_seq ^= 1;
             }
-
-            else {
-                 
-            }
-        }
-
-        else {
-
-
         }
     }
 

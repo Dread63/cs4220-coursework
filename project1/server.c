@@ -1,3 +1,7 @@
+#define _POSIX_C_SOURCE 200112L
+#include <stdint.h>           
+#include <sys/select.h>         
+#include <sys/time.h>          
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -28,13 +32,10 @@ int main(void)
     // Used to track error status
     int err_status;
 
-    // OUTLIER
-    socklen_t sin_size;
-
     struct addrinfo hints, *servinfo, *p;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;       // IPv4
-    hints.ai_socktype = SOCK_STREAM; // TCP
+    hints.ai_family = AF_INET;      
+    hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
     if ((err_status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0)
@@ -45,7 +46,6 @@ int main(void)
 
     // Condition to break out of the loop when a socket is successfully bound
     bool bind_success = false;
-
     for (p = servinfo; p != NULL && !bind_success; p = p->ai_next)
     {
 
@@ -58,6 +58,10 @@ int main(void)
             perror("socket");
             continue;
         }
+
+        // Used to make sure we don't get "address already in use when running code again"
+        int yes = 1;
+        setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
         // Try to bind and print error if can't
         if (bind(socket_fd, p->ai_addr, p->ai_addrlen) == -1)
@@ -96,6 +100,8 @@ int main(void)
     // Accept connection from client
     socklen_t sin_size = sizeof client_addr;
     new_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &sin_size);
+
+    // Check if there was an error accepting the connection
     if (new_fd == -1)
     {
         perror("accept");
@@ -105,6 +111,7 @@ int main(void)
 
     puts("Server: connection accepted\n");
 
+    // send_file_data returns 0 only when file is successfully read
     if (send_file_data(new_fd, "inputfile.txt") != 0)
     {
         perror("send_file_data failed\n");
@@ -119,6 +126,7 @@ int main(void)
     return 0;
 }
 
+// Send file data to client in blocks over the open socket connection
 int send_file_data(int socket_fd, const char *filepath)
 {
 
@@ -206,7 +214,8 @@ int send_file_data(int socket_fd, const char *filepath)
 
                 // If ack matches client feedback, toggle current sequence
                 if (ack == current_sequence)
-                {
+                {   
+                    printf("Server: sent seq=%u, bytes=%zu\n", current_sequence, bytes_read);
                     current_sequence ^= 1;
                     break;                 
                 }
@@ -219,7 +228,6 @@ int send_file_data(int socket_fd, const char *filepath)
             }
         }
 
-        printf("Server: sent seq=%u, bytes=%zu\n", current_sequence, bytes_read);
         bzero(buffer, FRAME_SIZE);
     }
 
