@@ -19,15 +19,15 @@
 #define MAX_BACKLOG 5
 #define FRAME_SIZE 1024
 
-#define STDIN 0
-
-int send_file_data(int socket_fd, const char *filepath);
-
 int main(void)
 {
 
     // Used to store current and new socket file descriptors
     int socket_fd, new_fd;
+    
+    FILE *input_file = fopen("input_file.txt", "rb");
+    char buffer[FRAME_SIZE + 1];
+    int seq;
 
     // Used to track error status
     int err_status;
@@ -111,126 +111,51 @@ int main(void)
 
     puts("Server: connection accepted\n");
 
-    // send_file_data returns 0 only when file is successfully read
-    if (send_file_data(new_fd, "inputfile.txt") != 0)
-    {
-        perror("send_file_data failed\n");
-        close(new_fd);
-        close(socket_fd);
-        return 1;
-    }
+    // While there are still lines in the file to read
+    while(1) {
 
-    close(new_fd);
-    close(socket_fd);
-    puts("Server: done, closing connection");
-    return 0;
-}
+        int bytes = fread(buffer + 1, 1, FRAME_SIZE, input_file);
 
-// Send file data to client in blocks over the open socket connection
-int send_file_data(int socket_fd, const char *filepath)
-{
+        if (bytes <= 0) {
 
-    FILE *data_file = fopen(filepath, "rb");
-
-    if (data_file == NULL)
-    {
-
-        perror("datafile");
-        return -1;
-    }
-
-    // Initialize seq, full frame buffer, and reading buffer
-    uint8_t current_sequence = 0;
-    uint8_t current_frame[FRAME_SIZE + 1];
-    char buffer[FRAME_SIZE] = {0};
-
-    // Loop to read through file and send data for each 1024 block read
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, FRAME_SIZE, data_file)) > 0)
-    {
-
-        current_frame[0] = current_sequence;
-
-        // Copy all data from file after the first sequence bit
-        memcpy(&current_frame[1], buffer, bytes_read);
-
-        size_t to_send = 1 + bytes_read;
-
-        // Loop to handle sending/receiving of ACK
-        while(1)
-        {
-            size_t sent = 0;
-            while (sent < to_send)
-            {
-                ssize_t send_feedback = send(socket_fd, current_frame + sent, to_send - sent, 0);
-                
-                // Check if data was sent successfully
-                if (send_feedback<= 0)
-                {
-                    perror("send");
-                    fclose(data_file);
-                    return -1;
-                }
-
-                sent += send_feedback;
-            }
-
-            // Wait for 1-byte ack using timout
-            struct timeval tv = {.tv_sec = 2, .tv_usec = 500000};
-            fd_set rfds;
-            FD_ZERO(&rfds);
-            FD_SET(socket_fd, &rfds);
-            int select_feedback = select(socket_fd + 1, &rfds, NULL, NULL, &tv);
-            
-            // Check if socket is readable
-            if (select_feedback < 0)
-            {
-                perror("select");
-                fclose(data_file);
-                return -1;
-            }
-
-            // Check for timeout and re-send frame if needed
-            if (select_feedback == 0)
-            {
-                puts("Timed out: resending frame");
-                continue;
-            }
-
-            // Something can be read, check if ack is correct
-            if (FD_ISSET(socket_fd, &rfds))
-            {
-                uint8_t ack;
-                ssize_t received_feedback = recv(socket_fd, &ack, 1, 0);
-    
-                if (received_feedback <= 0)
-                {
-                    perror("recv ack");
-                    fclose(data_file);
-                    return -1;
-                }
-
-                printf("Server: ACK received %u\n", ack);
-
-                // If ack matches client feedback, toggle current sequence
-                if (ack == current_sequence)
-                {   
-                    printf("Server: sent seq=%u, bytes=%zu\n", current_sequence, bytes_read);
-                    current_sequence ^= 1;
-                    break;                 
-                }
-
-                // Re-send ack if client feedback doesn't match
-                else
-                {
-                    puts("Wrong ACK: resending frame");
-                }
-            }
+            puts("Error reading file content");
+            return -1;
         }
 
-        bzero(buffer, FRAME_SIZE);
+        // Set index 0 equal to the current sequence bit
+        buffer[0] = seq;
+
+        // Loop to keep retransmitting frame based on ACK
+        while(1) {
+
+            send(new_fd, buffer, bytes + 1, 0);
+
+            // Wait for 1-byte ack using timout
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(new_fd, &rfds);
+
+            // Re-initialize timval struct on every loop since select wipes it
+            struct timeval tv = {.tv_sec = 2, .tv_usec = 500000};
+
+            int select_feedback = select(new_fd + 1, &rfds, NULL, NULL, &tv);
+
+            // If bits were read into the read file descriptor & socket_fd is a member of the rfds set
+            if (select_feedback > 0 && FD_ISSET(new_fd, &rfds)) {
+
+                int ack = 0;
+                int ack_recevied = recv(new_fd, &ack, sizeof(ack), 0);
+
+                if (ack_recevied > 0 && ack == seq) {
+                    seq = 1 - seq;
+                    break;
+                }
+            }
+        }  
     }
 
-    fclose(data_file);
+    fclose(input_file);
+    close(socket_fd);
+    close(new_fd);
     return 0;
 }
