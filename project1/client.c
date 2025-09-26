@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define PORT 2222
+#define PORT 2306
 #define SERVER_IP "127.0.0.1"
 #define FRAME_SIZE 1024
 
@@ -70,6 +70,8 @@ int main(void) {
 
             fwrite(buffer + 1, 1, bytes - 1, output_file);
             send(socket_fd, &expected_seq, sizeof(expected_seq), 0);
+
+            printf("Sent ACK: %d\n", expected_seq);
 
             // Toggle sequence bit
             expected_seq = 1 - expected_seq;

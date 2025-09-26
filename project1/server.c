@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <strings.h>
 
-#define PORT "2222"
+#define PORT "2306"
 #define MAX_BACKLOG 5
 #define FRAME_SIZE 1024
 
@@ -27,7 +27,7 @@ int main(void)
     
     FILE *input_file = fopen("input_file.txt", "rb");
     char buffer[FRAME_SIZE + 1];
-    int seq;
+    int seq = 0;
 
     // Used to track error status
     int err_status;
@@ -112,15 +112,10 @@ int main(void)
     puts("Server: connection accepted\n");
 
     // While there are still lines in the file to read
-    while(1) {
+    int bytes = 0;
+    do {
 
-        int bytes = fread(buffer + 1, 1, FRAME_SIZE, input_file);
-
-        if (bytes <= 0) {
-
-            puts("Error reading file content");
-            return -1;
-        }
+        bytes = fread(buffer + 1, 1, FRAME_SIZE, input_file);
 
         // Set index 0 equal to the current sequence bit
         buffer[0] = seq;
@@ -128,7 +123,7 @@ int main(void)
         // Loop to keep retransmitting frame based on ACK
         while(1) {
 
-            send(new_fd, buffer, bytes + 1, 0);
+            int sent = send(new_fd, buffer, bytes + 1, 0);
 
             // Wait for 1-byte ack using timout
             fd_set rfds;
@@ -147,12 +142,24 @@ int main(void)
                 int ack_recevied = recv(new_fd, &ack, sizeof(ack), 0);
 
                 if (ack_recevied > 0 && ack == seq) {
+                    printf("Expected ack: %d, received ack: %d\n", seq, ack);
+
+                    // Toggle sequence value
                     seq = 1 - seq;
                     break;
                 }
+
+                else {
+
+                    printf("Wrong ack received: %d\n", ack);
+                }
             }
+
+            puts("Timed out, re-sending frame\n");
         }  
-    }
+    } while (bytes != 0);
+
+    puts("Done writing file to socket");
 
     fclose(input_file);
     close(socket_fd);
