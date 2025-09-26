@@ -14,7 +14,11 @@ How To:
 Inside a terminal in the root directory of this project, three different make commands can be used. These include the following:
 1. `make all` : builds both server and client binaries
 2. `make server` : builds server binary
-3. `make client` : builds client binary 
+3. `make client` : builds client binary
+
+Additionally, its important to note that the server configures its ip address based on the machine it is compiled on. So,
+if you would like to send the server to separate machine other than the client (simply using a loopback address to test on one computer)
+than you must run `make server` on server itself.
 
 Lessons Learned:
 Before I began this project, I had no network socket programming experience at all. I learned how to manage sockets and
