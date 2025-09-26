@@ -11,10 +11,11 @@ After that I connected to the open socket on my client and began to receive data
 nested while loop to implemented the stop and wait ARQ which would re-transmit a file on timeout or an incorrect ACK.
 
 How To:
-Inside a terminal in the root directory of this project, three different make commands can be used. These include the following:
+Inside a terminal in the root directory of this project, four different make commands can be used. These include the following:
 1. `make all` : builds both server and client binaries
 2. `make server` : builds server binary
 3. `make client` : builds client binary
+4. `make clean` : removes all compiled binaries from project directory
 
 Additionally, its important to note that the server configures its ip address based on the machine it is compiled on. So,
 if you would like to send the server to separate machine other than the client (simply using a loopback address to test on one computer)
