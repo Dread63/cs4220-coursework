@@ -1,0 +1,5 @@
+/Applications/CLion.app/Contents/bin/cmake/mac/aarch64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/aarch64/ninja -G Ninja -S /Users/joshdouglas/dev/cs4220-coursework/project3 -B /Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug
+-- Found OpenSSL: /opt/homebrew/lib/libcrypto.dylib (found version "3.6.0")
+-- Configuring done (0.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug

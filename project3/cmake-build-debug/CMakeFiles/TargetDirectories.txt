@@ -1,0 +1,4 @@
+/Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug/CMakeFiles/server.dir
+/Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug/CMakeFiles/client.dir
+/Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/joshdouglas/dev/cs4220-coursework/project3/cmake-build-debug/CMakeFiles/rebuild_cache.dir
