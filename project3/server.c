@@ -29,12 +29,14 @@ int main(void) {
         return 1;
     }
 
+    // Configure the ssl context object to use our self-signed certificate in the root directly
     if (!SSL_CTX_use_certificate_file(ctx, "cert.pem" , SSL_FILETYPE_PEM) ||
         !SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM)) {
         fprintf(stderr, "SSL_CTX_use_certificate_file() failed.\n");
         ERR_print_errors_fp(stderr);
+
         return 1;
-}
+    }
 
     int socket_fd = 0, new_fd = 0;
 
@@ -95,6 +97,13 @@ int main(void) {
 
     while(1) {
 
+        // Create new SSL object to wrap our accepted TCP connection in
+        SSL *ssl = SSL_new(ctx);
+        if (!ssl) {
+            fprintf(stderr, "SSL_new() failed.\n");
+            return 1;
+        }
+
         // Accept connection from client, casting client_addr address as a sockaddr pointer
         socklen_t sin_size = sizeof(client_addr);
         new_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &sin_size);
@@ -105,27 +114,32 @@ int main(void) {
             fprintf(stderr, "Failed to accept connection from client\n");
             continue;
         }
+        puts("Server: connection accepted successfully\n");
 
-        else {
-
-            puts("Server: connection accepted successfully\n");
+        // Wrap the TCP connection in new_fd using SSL
+        SSL_set_fd(ssl, new_fd);
+        if (SSL_accept(ssl) <= 0) {
+            fprintf(stderr, "SSL_accept() failed.\n");
+            ERR_print_errors_fp(stderr);
+            continue;
         }
 
         ssize_t bytesRead;
 
-        if ((bytesRead = read(new_fd, buffer, BUFFER)) == -1) {
+        // Read the data coming from client using SSL_read for secure communication
+        if ((bytesRead = SSL_read(ssl, buffer, BUFFER - 1)) <= 0) {
 
-            fprintf(stderr, "Error reading HTTP request");
-            exit(1);
+            fprintf(stderr, "SSL_read() failed.\n");
         }
 
-        // Null terminate the received string
-        if (bytesRead >= 0) {
-            buffer[bytesRead] = '\0';
-            puts(buffer);
+        // After reading HTTP data from client, send a response
+        else {
+
+            buffer[bytesRead] = '\0'; // Null terminate the received string
+            puts(buffer); // Print received HTTP data
 
             // Send HTTP response
-            const char *response = 
+            const char *response =
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/html\r\n"
                 "Content-Length: 44\r\n"
@@ -133,18 +147,22 @@ int main(void) {
                 "\r\n"
                 "<html><body><h1>Hello, World!</h1></body></html>";
 
-            send(new_fd, response, strlen(response), 0);
+            if (SSL_write(ssl, response, strlen(response)) <= 0) {
+                fprintf(stderr, "SSL_write() failed.\n");
+                ERR_print_errors_fp(stderr);
+            }
         }
 
-        else {
-            
-            fprintf(stderr, "Error reading buffer\n");
-        }
-
+        // Free SSL and socket resources after connection closes
+        SSL_shutdown(ssl);
         close(new_fd);
-        break;
+        SSL_free(ssl);
     }
 
+    // These cleanup operations should be done even though there isn't currently
+    // an operation closing the server connection (manual intervention such as CRL + C)
+    // should end the server since we expect it to run indefinitely.
     close(socket_fd);
+    SSL_CTX_free(ctx);
     return 0;
 }

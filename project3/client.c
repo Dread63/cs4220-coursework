@@ -3,7 +3,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -15,6 +14,27 @@
 #define SERVER_IP "127.0.0.1"
 
 int main(void) {
+
+    // Init OpenSSL
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+
+    // Create the SSL context object
+    SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
+    if (!ctx) {
+        fprintf(stderr, "SSL_CTX_new() failed.\n");
+        return 1;
+    }
+
+    // Configure the ssl context object to use our self-signed certificate in the root directly
+    if (!SSL_CTX_use_certificate_file(ctx, "cert.pem" , SSL_FILETYPE_PEM) ||
+        !SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM)) {
+        fprintf(stderr, "SSL_CTX_use_certificate_file() failed.\n");
+        ERR_print_errors_fp(stderr);
+
+        return 1;
+    }
 
     int socket_fd = 0;
     char buffer[BUFFER];
@@ -47,4 +67,20 @@ int main(void) {
     }
     
     puts("Client: Connection Successful");
+
+    // Loop to send and receive data with client
+    while (1) {
+
+        // Create new SSL object to wrap our accepted TCP connection in
+        SSL *ssl = SSL_new(ctx);
+        if (!ssl) {
+            fprintf(stderr, "SSL_new() failed.\n");
+            return 1;
+        }
+
+        
+
+        int bytes = SSL_read(socket_fd, buffer, BUFFER);
+
+    }
 }
