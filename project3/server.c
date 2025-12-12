@@ -29,14 +29,37 @@ int main(void) {
         return 1;
     }
 
+    // Set minimum TLS protocol to TLS 1.2
+    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+
+    // Disable all other insecure protocols as outlined in the project description
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+
     // Configure the ssl context object to use our self-signed certificate in the root directly
-    if (!SSL_CTX_use_certificate_file(ctx, "cert.pem" , SSL_FILETYPE_PEM) ||
-        !SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM)) {
+    if (!SSL_CTX_use_certificate_file(ctx, "server.crt" , SSL_FILETYPE_PEM) ||
+        !SSL_CTX_use_PrivateKey_file(ctx, "server.key", SSL_FILETYPE_PEM)) {
         fprintf(stderr, "SSL_CTX_use_certificate_file() failed.\n");
         ERR_print_errors_fp(stderr);
 
         return 1;
     }
+
+    // Load client certificate to verify
+    if (!SSL_CTX_load_verify_locations(ctx, "client.crt", NULL)) {
+        fprintf(stderr, "SSL_CTX_load_verify_locations() failed.\n");
+        ERR_print_errors_fp(stderr);
+
+        return 1;
+    }
+
+    // Enable mutual TLS (require and verify the client's certificate)
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+
+    // Set verification depth
+    SSL_CTX_set_verify_depth(ctx, 1);
+
+    // Prevents incomplete read/write during negotiation
+    SSL_CTX_set_mode(ctx, SSL_MODE_AUTO_RETRY);
 
     int socket_fd = 0, new_fd = 0;
 
@@ -66,6 +89,14 @@ int main(void) {
 
             fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
             continue; // Continue to trying next address
+        }
+
+        // Fixes the issues where running the code again says "Address already in use"
+        int yes = 1;
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+            perror("setsockopt");
+            close(socket_fd);
+            continue;
         }
 
         if (bind(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
@@ -124,6 +155,8 @@ int main(void) {
             continue;
         }
 
+        puts("SSL handshake successful\n");
+
         ssize_t bytesRead;
 
         // Read the data coming from client using SSL_read for secure communication
@@ -138,6 +171,7 @@ int main(void) {
             buffer[bytesRead] = '\0'; // Null terminate the received string
             puts(buffer); // Print received HTTP data
 
+            // TODO: CONVERT THIS TO SENDING A FILE OVER HTTP
             // Send HTTP response
             const char *response =
                 "HTTP/1.1 200 OK\r\n"
