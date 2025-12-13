@@ -145,7 +145,7 @@ int main(void) {
             fprintf(stderr, "Failed to accept connection from client\n");
             continue;
         }
-        puts("Server: connection accepted successfully\n");
+        puts("Server: Connection accepted successfully");
 
         // Wrap the TCP connection in new_fd using SSL
         SSL_set_fd(ssl, new_fd);
@@ -155,7 +155,7 @@ int main(void) {
             continue;
         }
 
-        puts("SSL handshake successful\n");
+        puts("Server: SSL handshake successful");
 
         ssize_t bytesRead;
 
@@ -163,23 +163,18 @@ int main(void) {
         if ((bytesRead = SSL_read(ssl, buffer, BUFFER - 1)) <= 0) {
 
             fprintf(stderr, "SSL_read() failed.\n");
+            ERR_print_errors_fp(stderr);
         }
 
         // After reading HTTP data from client, send a response
         else {
 
             buffer[bytesRead] = '\0'; // Null terminate the received string
-            puts(buffer); // Print received HTTP data
+            printf("Server: Received request: %s\n", buffer); // Print received HTTP data
 
-            // TODO: CONVERT THIS TO SENDING A FILE OVER HTTP
             // Send HTTP response
             const char *response =
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 44\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "<html><body><h1>Hello, World!</h1></body></html>";
+                "Hello World!";
 
             if (SSL_write(ssl, response, strlen(response)) <= 0) {
                 fprintf(stderr, "SSL_write() failed.\n");
@@ -191,6 +186,7 @@ int main(void) {
         SSL_shutdown(ssl);
         close(new_fd);
         SSL_free(ssl);
+        puts("Server: Connection successfully closed");
     }
 
     // These cleanup operations should be done even though there isn't currently
