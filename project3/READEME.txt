@@ -1,0 +1,44 @@
+Joshua Douglas - jdougla8@uccs.edu
+
+Statement of Work:
+I have neither given nor received unauthorized assistance on this work
+
+Description:
+This assignment is an example of a HTTP server and client which implement OpenSSL and mTLS.
+I solved this problem by mainly following the "Hands-On Network Programming with C" textbook by
+Lewis Van Winkle. This text was invaluable for me understanding how to wrap a socket in SSL, however
+I needed to look to other resources for how to set the minimum TLS version, load the certificate files,
+and verify the certificate files for mutual TLS since the textbook did not cover this topic. The result
+was a simple yet elegant server/client combo which connect to each other, make a successful TLS handshake,
+exchange a request and response, then close.
+
+How To:
+Inside a terminal in the root directory of this project, four different make commands can be used. These include the following:
+1. `make all` : builds both server and client binaries
+2. `make server` : builds server binary
+3. `make client` : builds client binary
+4. `make clean` : removes all compiled binaries from project directory
+
+Additionally, it is important to note that the server configures its ip address based on the machine it is compiled on. So,
+if you would like to send the server to separate machine other than the client (simply using a loopback address to test on one computer)
+than you must run `make server` on the server host itself.
+
+Lessons Learned:
+This project went much more smoothly than project 1 because I actually felt like I had a grasp on the fundamentals of network
+programming. However, the biggest lesson I learned was related to the whole process of OpenSSL and the back and forth between
+the server and client. Because I didn't do enough research to understand this process in depth, I thought I had completed the
+project without having actually implemented mTLS. Initially I was frustrated with this realization, but after finding a few valuable
+repositories on Github and a guide online I discovered that the mTLS implementation wasn't so bad. To summarize, I should do some more
+in depth research next time around to understand the underlying mechanisms more properly.
+
+Test Case:
+I simply created a constant string on both the server end and the client. The client begins by connecting to the server
+and sending its request (the string) which says "Request for greeting!" Then, the server sends a response saying "Hello world!"
+which confirms that the communication works. Then the client closes the connection and the server continues listening for a followup.
+
+Resources:
+https://beej.us/guide/bgnet/
+Hands-On Network Programming with C - Lewis Van Winkle
+https://github.com/denismurphy/secure-https-client-mtls
+https://github.com/zapstar/two-way-ssl-c
+https://docs.openssl.org/master/
